@@ -187,22 +187,22 @@ impl Serialize for ClientCommandSerializer {
     fn serialize(&mut self, msg: &Self::In, buf: &mut Vec<u8>) {
         match *msg {
             ClientCommand::Auth { ref mechanism, ref initial_response } => {
-                buf.reserve(8 + initial_response.as_ref().map_or(0, |s| 1 + hex_encoded_len(&s)));
+                buf.reserve(8 + initial_response.as_ref().map_or(0, |s| 1 + hex_encoded_len(s)));
 
-                buf.extend_from_slice("\0AUTH ".as_bytes());
+                buf.extend_from_slice(b"\0AUTH ");
                 buf.extend_from_slice(mechanism.as_bytes());
 
                 match *initial_response {
                     None => {}
                     Some(ref initial_response) => {
-                        buf.push(' ' as u8);
-                        extend_from_hex_encoded(buf, &initial_response);
+                        buf.push(b' ');
+                        extend_from_hex_encoded(buf, initial_response);
                     }
                 }
 
-                buf.extend_from_slice("\r\n".as_bytes());
+                buf.extend_from_slice(b"\r\n");
             }
-            ClientCommand::Begin => buf.extend_from_slice("BEGIN\r\n".as_bytes()),
+            ClientCommand::Begin => buf.extend_from_slice(b"BEGIN\r\n"),
         }
     }
 }
