@@ -1,0 +1,15 @@
+[package]
+name = "tokio-dbus"
+version = "0.1.0"
+authors = ["Michael Smith <michael@spinda.net>"]
+
+[dependencies]
+futures = "0.1"
+libc = "0.2.16"
+nom = "1.2.4"
+tokio-core = "0.1"
+tokio-uds = "0.1"
+
+[replace]
+"tokio-core:0.1.0" = { git = "https://github.com/spinda/tokio-core", branch = "patched" }
+"tokio-uds:0.1.0" = { git = "https://github.com/tokio-rs/tokio-uds" }
