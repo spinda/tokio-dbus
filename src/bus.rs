@@ -1,47 +1,46 @@
-use futures::{self, Future};
+use futures::Future;
 use std::io::Result;
 use std::net::Shutdown;
 use std::path::Path;
 use tokio_core::reactor::Handle;
 use tokio_uds::UnixStream;
 
-use auth;
-pub use auth::{AuthError, AuthFuture, AuthMode};
+use auth::{Authenticator, AuthError, ServerGuid};
 
 pub struct Bus {
-    upstream: UnixStream,
+    inner: UnixStream,
 }
 
 impl Bus {
-    pub fn connect<P>(path: P, handle: &Handle, auth_mode: AuthMode) -> AuthFuture<Self>
-        where P: AsRef<Path>
+    pub fn connect<P, F, T>
+        (path: P,
+         handle: &Handle,
+         auth_strategy: F)
+         -> impl Future<Item = (ServerGuid, Self), Error = (AuthError, Option<Authenticator>)>
+        where P: AsRef<Path>,
+              F: FnOnce(Authenticator) -> T,
+              T: Future<Item = (ServerGuid, Authenticator),
+                        Error = (AuthError, Option<Authenticator>)>
     {
-        let upstream = futures::done(UnixStream::connect(path, handle))
-            .map_err(AuthError::from);
-        let bus =
-            upstream.and_then(|upstream| Bus::from_upstream(upstream).authenticate(auth_mode));
-
-        bus.boxed()
+        Authenticator::connect(path, handle)
+            .map_err(|err| (err.into(), None))
+            .and_then(|auth| auth_strategy(auth))
+            .and_then(|(server_guid, auth)| {
+                auth.begin()
+                    .map(move |bus| (server_guid, bus))
+                    .map_err(|err| (err.into(), None))
+            })
     }
 
-    pub fn from_upstream(upstream: UnixStream) -> Self {
-        Bus { upstream: upstream }
+    pub fn new(inner: UnixStream) -> Self {
+        Bus { inner: inner }
     }
 
-    pub fn into_upstream(self) -> UnixStream {
-        self.upstream
+    pub fn into_inner(self) -> UnixStream {
+        self.inner
     }
 
-    pub fn authenticate(self, auth_mode: AuthMode) -> AuthFuture<Self> {
-        let Bus { upstream } = self;
-
-        let auth = auth::authenticate(upstream, auth_mode);
-        let pack = auth.map(Bus::from_upstream);
-
-        pack.boxed()
-    }
-
-    pub fn disconnect(&self) -> Result<()> {
-        self.upstream.shutdown(Shutdown::Both)
+    pub fn disconnect(self) -> Result<()> {
+        self.into_inner().shutdown(Shutdown::Both)
     }
 }
