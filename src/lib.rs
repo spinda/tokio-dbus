@@ -11,4 +11,5 @@ pub mod auth;
 pub mod bus;
 
 pub use auth::{Authenticator, AuthError, ClientCommand, ServerCommand, ServerGuid, auth_external};
-pub use bus::Bus;
+pub use bus::{Bus, Signature, Type, BasicType, ContainerType, parse_signature, parse_type,
+              parse_basic_type, parse_container_type};

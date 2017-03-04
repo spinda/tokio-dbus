@@ -1,9 +1,6 @@
-use std::borrow::Cow;
 use std::error;
 use std::fmt::{self, Display, Formatter};
 use std::io::{Error, ErrorKind};
-
-pub type ServerGuid = [u64; 2];
 
 #[derive(Debug)]
 pub enum AuthError {
@@ -54,32 +51,4 @@ impl From<Error> for AuthError {
     fn from(err: Error) -> Self {
         AuthError::Io(err)
     }
-}
-
-#[derive(Clone, Debug)]
-pub enum ServerCommand {
-    Data(Vec<u8>),
-    Error,
-    Ok { server_guid: ServerGuid },
-    Rejected { supported_mechanisms: Vec<Vec<u8>> },
-    Raw {
-        cmd: Vec<u8>,
-        payload: Option<Vec<u8>>,
-    },
-}
-
-#[derive(Clone, Debug)]
-pub enum ClientCommand {
-    Auth {
-        mechanism: Cow<'static, [u8]>,
-        initial_response: Option<Cow<'static, [u8]>>,
-    },
-    Begin,
-    Cancel,
-    Data(Cow<'static, [u8]>),
-    Error(Option<Cow<'static, [u8]>>),
-    Raw {
-        cmd: Cow<'static, [u8]>,
-        payload: Option<Cow<'static, [u8]>>,
-    },
 }

@@ -8,8 +8,7 @@ use tokio_uds::UnixStream;
 
 use bus::Bus;
 
-use auth::codec::AuthCodec;
-use auth::types::{ClientCommand, ServerCommand};
+use auth::commands::{AuthCodec, ClientCommand, ServerCommand};
 
 type AuthFramed = Framed<UnixStream, AuthCodec>;
 
@@ -40,8 +39,7 @@ impl Authenticator {
     }
 
     pub fn prime(self) -> impl Future<Item = Self, Error = Error> {
-        io::write_all(self.into_inner(), [0])
-            .map(|(inner, _)| Authenticator::new(inner))
+        io::write_all(self.into_inner(), [0]).map(|(inner, _)| Authenticator::new(inner))
     }
 
     pub fn begin(self) -> impl Future<Item = Bus, Error = Error> {

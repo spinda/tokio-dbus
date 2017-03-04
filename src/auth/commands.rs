@@ -1,8 +1,37 @@
 use nom::{self, IResult, Needed};
+use std::borrow::Cow;
 use std::io::{Error, ErrorKind, Result};
 use tokio_core::io::{Codec, EasyBuf};
 
-use auth::types::{ClientCommand, ServerCommand, ServerGuid};
+#[derive(Clone, Debug)]
+pub enum ServerCommand {
+    Data(Vec<u8>),
+    Error,
+    Ok { server_guid: ServerGuid },
+    Rejected { supported_mechanisms: Vec<Vec<u8>> },
+    Raw {
+        cmd: Vec<u8>,
+        payload: Option<Vec<u8>>,
+    },
+}
+
+#[derive(Clone, Debug)]
+pub enum ClientCommand {
+    Auth {
+        mechanism: Cow<'static, [u8]>,
+        initial_response: Option<Cow<'static, [u8]>>,
+    },
+    Begin,
+    Cancel,
+    Data(Cow<'static, [u8]>),
+    Error(Option<Cow<'static, [u8]>>),
+    Raw {
+        cmd: Cow<'static, [u8]>,
+        payload: Option<Cow<'static, [u8]>>,
+    },
+}
+
+pub type ServerGuid = [u64; 2];
 
 pub struct AuthCodec;
 
@@ -127,24 +156,24 @@ macro_rules! hex_uint(
 );
 
 named!(parse_server_cmd(&[u8]) -> ServerCommand,
-    chain!(
+    do_parse!(
         cmd: alt!(
             parse_server_cmd_data |
             parse_server_cmd_error |
             parse_server_cmd_ok |
             parse_server_cmd_rejected |
             parse_server_cmd_raw
-        ) ~
-        tag!(b"\r\n"),
-        || { cmd }
+        ) >>
+        tag!(b"\r\n") >>
+        (cmd)
     )
 );
 
 named!(parse_server_cmd_data(&[u8]) -> ServerCommand,
-    chain!(
-        tag!(b"DATA ") ~
-        payload: many1!(hex_uint!(u8, 2)),
-        || { ServerCommand::Data(payload) }
+    do_parse!(
+        tag!(b"DATA ") >>
+        payload: many1!(hex_uint!(u8, 2)) >>
+        (ServerCommand::Data(payload))
     )
 );
 
@@ -153,26 +182,26 @@ named!(parse_server_cmd_error(&[u8]) -> ServerCommand,
 );
 
 named!(parse_server_cmd_ok(&[u8]) -> ServerCommand,
-    chain!(
-        tag!(b"OK ") ~
-        server_guid: parse_server_guid,
-        || { ServerCommand::Ok { server_guid: server_guid } }
+    do_parse!(
+        tag!(b"OK ") >>
+        server_guid: parse_server_guid >>
+        (ServerCommand::Ok { server_guid: server_guid })
     )
 );
 
 named!(parse_server_cmd_rejected(&[u8]) -> ServerCommand,
-    chain!(
-        tag!(b"REJECTED ") ~
-        supported_mechanisms: many0!(preceded!(tag!(b" "), parse_cmd_name)),
-        || { ServerCommand::Rejected { supported_mechanisms: supported_mechanisms } }
+    do_parse!(
+        tag!(b"REJECTED ") >>
+        supported_mechanisms: many0!(preceded!(tag!(b" "), parse_cmd_name)) >>
+        (ServerCommand::Rejected { supported_mechanisms: supported_mechanisms })
     )
 );
 
 named!(parse_server_cmd_raw(&[u8]) -> ServerCommand,
-    chain!(
-        cmd: parse_cmd_name ~
-        payload: opt!(preceded!(tag!(b" "), parse_cmd_name)),
-        || { ServerCommand::Raw { cmd: cmd, payload: payload } }
+    do_parse!(
+        cmd: parse_cmd_name >>
+        payload: opt!(preceded!(tag!(b" "), parse_cmd_name)) >>
+        (ServerCommand::Raw { cmd: cmd, payload: payload })
     )
 );
 

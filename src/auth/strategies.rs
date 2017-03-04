@@ -4,7 +4,8 @@ use libc;
 use std::io::{Error, ErrorKind};
 
 use auth::client::Authenticator;
-use auth::types::{AuthError, ClientCommand, ServerCommand, ServerGuid};
+use auth::commands::{ClientCommand, ServerCommand, ServerGuid};
+use auth::error::AuthError;
 
 pub fn auth_external
     (auth: Authenticator)
