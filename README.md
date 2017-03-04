@@ -1,4 +1,7 @@
-# <img src="https://github.com/spinda/tokio-dbus/blob/master/etc/logo.png?raw=true" width="120"/> tokio-dbus
+<p align="center">
+  <img src="https://github.com/spinda/tokio-dbus/blob/master/etc/logo.png?raw=true" width="200"/>
+  <h1>tokio-dbus</h1>
+</p>
 
 > Rust async D-Bus client built on [Tokio](https://tokio.rs/)
 
