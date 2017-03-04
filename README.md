@@ -4,11 +4,16 @@
 
 # tokio-dbus
 
-> Rust async D-Bus client built on [Tokio](https://tokio.rs/)
+> [Rust](http://rust-lang.org/) async
+> [D-Bus](https://www.freedesktop.org/wiki/Software/dbus/) client built on
+> [Tokio](https://tokio.rs/)
 
 ## WARNING: This repository is under active development!
 
 It's not ready to use yet, but feel free to peek and poke around!
+
+Current status: implementing the
+[D-Bus specification](https://dbus.freedesktop.org/doc/dbus-specification.html).
 
 ## License
 
