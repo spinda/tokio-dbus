@@ -1,14 +1,14 @@
 <p align="center">
   <img src="https://github.com/spinda/tokio-dbus/blob/master/etc/logo.png?raw=true" width="200"/>
-  <h1>tokio-dbus</h1>
 </p>
+
+# tokio-dbus
 
 > Rust async D-Bus client built on [Tokio](https://tokio.rs/)
 
 ## WARNING: This repository is under active development!
 
-It's not ready to use for anything&mdash;at all&mdash;at the moment, but feel
-free to peek and poke around!
+It's not ready to use yet, but feel free to peek and poke around!
 
 ## License
 
