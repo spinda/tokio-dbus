@@ -1,13 +1,14 @@
-// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
-// of the MPL was not distributed with this file, You can obtain one at
-// http://mozilla.org/MPL/2.0/.
+// This Source Code Form is subject to the terms of the Mozilla Public License,
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
+// obtain one at http://mozilla.org/MPL/2.0/.
 
 use nom::{self, IResult, Needed};
 use std::borrow::Cow;
 use std::io::{Error, ErrorKind, Result};
-use tokio_core::io::{Codec, EasyBuf};
 
-#[derive(Clone, Debug)]
+pub type ServerGuid = [u64; 2];
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ServerCommand {
     Data(Vec<u8>),
     Error,
@@ -19,7 +20,7 @@ pub enum ServerCommand {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ClientCommand {
     Auth {
         mechanism: Cow<'static, [u8]>,
@@ -35,106 +36,92 @@ pub enum ClientCommand {
     },
 }
 
-pub type ServerGuid = [u64; 2];
-
-pub struct AuthCodec;
-
-impl Codec for AuthCodec {
-    type In = ServerCommand;
-    type Out = ClientCommand;
-
-    fn decode(&mut self, buf: &mut EasyBuf) -> Result<Option<Self::In>> {
-        let (result, consumed) = match parse_server_cmd(buf.as_slice()) {
-            IResult::Done(remaining, cmd) => (Ok(Some(cmd)), buf.len() - remaining.len()),
-            IResult::Incomplete(_) => return Ok(None),
-            IResult::Error(_) => {
-                return Err(Error::new(ErrorKind::InvalidData,
-                                      "unable to parse auth response from D-Bus server"))
-            }
-        };
-        buf.drain_to(consumed);
-        result
+pub fn decode_server_cmd(input: &[u8]) -> Result<Option<(ServerCommand, &[u8])>> {
+    match parse_server_cmd(input) {
+        IResult::Done(remaining, cmd) => Ok(Some((cmd, remaining))),
+        IResult::Incomplete(_) => Ok(None),
+        IResult::Error(_) => {
+            Err(Error::new(ErrorKind::InvalidData, "malformed D-Bus auth server command"))
+        }
     }
+}
 
-    fn encode(&mut self, cmd: Self::Out, buf: &mut Vec<u8>) -> Result<()> {
-        match cmd {
-            ClientCommand::Auth { mechanism, initial_response } => {
-                match initial_response {
-                    None => {
-                        buf.reserve_exact(5 + mechanism.len() + 2);
+pub fn encode_client_cmd(cmd: &ClientCommand, output: &mut Vec<u8>) {
+    match *cmd {
+        ClientCommand::Auth { ref mechanism, ref initial_response } => {
+            match *initial_response {
+                None => {
+                    output.reserve_exact(5 + mechanism.len() + 2);
 
-                        buf.extend_from_slice(b"AUTH ");
-                        // ^ 5 bytes
-                        buf.extend_from_slice(&mechanism);
-                        // ^ mechanism.len() bytes
-                        buf.extend_from_slice(b"\r\n");
-                        // ^ 2 bytes
-                    }
-                    Some(initial_response) => {
-                        buf.reserve_exact(5 + mechanism.len() + 1 +
-                                          hex_encoded_len(&initial_response) +
-                                          2);
-
-                        buf.extend_from_slice(b"AUTH ");
-                        // ^ 5 bytes
-                        buf.extend_from_slice(&mechanism);
-                        // ^ mechanism.len() bytes
-                        buf.push(b' ');
-                        // ^ 1 byte
-                        extend_from_hex_encoded(buf, &initial_response);
-                        // ^ hex_encoded_len(&initial_response) bytes
-                        buf.extend_from_slice(b"\r\n");
-                        // ^ 2 bytes
-                    }
+                    output.extend_from_slice(b"AUTH ");
+                    // ^ 5 bytes
+                    output.extend_from_slice(mechanism);
+                    // ^ mechanism.len() bytes
+                    output.extend_from_slice(b"\r\n");
+                    // ^ 2 bytes
                 }
-            }
-            ClientCommand::Begin => buf.extend_from_slice(b"BEGIN\r\n"),
-            ClientCommand::Cancel => buf.extend_from_slice(b"CANCEL\r\n"),
-            ClientCommand::Data(bytes) => {
-                buf.reserve_exact(5 + hex_encoded_len(&bytes) + 2);
+                Some(ref initial_response) => {
+                    output.reserve_exact(5 + mechanism.len() + 1 +
+                                         hex_encoded_len(initial_response) +
+                                         2);
 
-                buf.extend_from_slice(b"DATA ");
-                // ^ 5 bytes
-                extend_from_hex_encoded(buf, &bytes);
-                // ^ hex_encoded_len(&bytes) bytes
-                buf.extend_from_slice(b"\r\n");
-                // ^ 2 bytes
-            }
-            ClientCommand::Error(message) => {
-                match message {
-                    None => buf.extend_from_slice(b"ERROR\r\n"),
-                    Some(message) => {
-                        buf.reserve_exact(6 + message.len() + 2);
-
-                        buf.extend_from_slice(b"ERROR ");
-                        // ^ 6 bytes
-                        buf.extend_from_slice(&message);
-                        // ^ message.len() bytes
-                        buf.extend_from_slice(b"\r\n");
-                        // ^ 2 bytes
-                    }
-                }
-            }
-            ClientCommand::Raw { cmd, payload } => {
-                match payload {
-                    None => buf.extend_from_slice(&cmd),
-                    Some(payload) => {
-                        buf.reserve_exact(cmd.len() + 1 + payload.len() + 2);
-
-                        buf.extend_from_slice(&cmd);
-                        // ^ cmd.len() bytes
-                        buf.push(b' ');
-                        // ^ 1 byte
-                        buf.extend_from_slice(&payload);
-                        // ^ payload.len() bytes
-                        buf.extend_from_slice(b"\r\n");
-                        // ^ 2 bytes
-                    }
+                    output.extend_from_slice(b"AUTH ");
+                    // ^ 5 bytes
+                    output.extend_from_slice(mechanism);
+                    // ^ mechanism.len() bytes
+                    output.push(b' ');
+                    // ^ 1 byte
+                    extend_from_hex_encoded(output, initial_response);
+                    // ^ hex_encoded_len(&initial_response) bytes
+                    output.extend_from_slice(b"\r\n");
+                    // ^ 2 bytes
                 }
             }
         }
+        ClientCommand::Begin => output.extend_from_slice(b"BEGIN\r\n"),
+        ClientCommand::Cancel => output.extend_from_slice(b"CANCEL\r\n"),
+        ClientCommand::Data(ref bytes) => {
+            output.reserve_exact(5 + hex_encoded_len(&bytes) + 2);
 
-        Ok(())
+            output.extend_from_slice(b"DATA ");
+            // ^ 5 bytes
+            extend_from_hex_encoded(output, &bytes);
+            // ^ hex_encoded_len(&bytes) bytes
+            output.extend_from_slice(b"\r\n");
+            // ^ 2 bytes
+        }
+        ClientCommand::Error(ref message) => {
+            match *message {
+                None => output.extend_from_slice(b"ERROR\r\n"),
+                Some(ref message) => {
+                    output.reserve_exact(6 + message.len() + 2);
+
+                    output.extend_from_slice(b"ERROR ");
+                    // ^ 6 bytes
+                    output.extend_from_slice(message);
+                    // ^ message.len() bytes
+                    output.extend_from_slice(b"\r\n");
+                    // ^ 2 bytes
+                }
+            }
+        }
+        ClientCommand::Raw { ref cmd, ref payload } => {
+            match *payload {
+                None => output.extend_from_slice(&cmd),
+                Some(ref payload) => {
+                    output.reserve_exact(cmd.len() + 1 + payload.len() + 2);
+
+                    output.extend_from_slice(cmd);
+                    // ^ cmd.len() bytes
+                    output.push(b' ');
+                    // ^ 1 byte
+                    output.extend_from_slice(payload);
+                    // ^ payload.len() bytes
+                    output.extend_from_slice(b"\r\n");
+                    // ^ 2 bytes
+                }
+            }
+        }
     }
 }
 

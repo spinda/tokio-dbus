@@ -1,18 +1,18 @@
-// This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0. If a copy
-// of the MPL was not distributed with this file, You can obtain one at
-// http://mozilla.org/MPL/2.0/.
+// This Source Code Form is subject to the terms of the Mozilla Public License,
+// v. 2.0. If a copy of the MPL was not distributed with this file, You can
+// obtain one at http://mozilla.org/MPL/2.0/.
 
 use futures::{Future, IntoFuture, Poll, Sink, StartSend, Stream};
 use std::io::{Error, Result};
 use std::net::Shutdown;
 use std::path::Path;
-use tokio_core::io::{self, Framed, Io};
+use tokio_core::io::{self, Codec, EasyBuf, Framed, Io};
 use tokio_core::reactor::Handle;
 use tokio_uds::UnixStream;
 
 use bus::Bus;
 
-use auth::commands::{AuthCodec, ClientCommand, ServerCommand};
+use auth::commands::{self, ClientCommand, ServerCommand};
 
 type AuthFramed = Framed<UnixStream, AuthCodec>;
 
@@ -75,5 +75,26 @@ impl Sink for Authenticator {
 
     fn poll_complete(&mut self) -> Poll<(), Error> {
         self.inner.poll_complete()
+    }
+}
+
+struct AuthCodec;
+
+impl Codec for AuthCodec {
+    type In = ServerCommand;
+    type Out = ClientCommand;
+
+    fn decode(&mut self, buf: &mut EasyBuf) -> Result<Option<Self::In>> {
+        let (cmd, consumed) = match commands::decode_server_cmd(buf.as_slice())? {
+            Some((cmd, remaining)) => (cmd, buf.len() - remaining.len()),
+            None => return Ok(None),
+        };
+        buf.drain_to(consumed);
+        Ok(Some(cmd))
+    }
+
+    fn encode(&mut self, cmd: Self::Out, buf: &mut Vec<u8>) -> Result<()> {
+        commands::encode_client_cmd(&cmd, buf);
+        Ok(())
     }
 }
