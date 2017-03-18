@@ -2,7 +2,7 @@
   <img src="https://github.com/spinda/tokio-dbus/blob/master/etc/logo.png?raw=true" width="200"/>
 </p>
 
-# tokio-dbus
+# tokio-dbus [![GitHub](https://img.shields.io/badge/%F0%9F%90%99-GitHub-555555.svg)](https://github.com/spinda/tokio-dbus) [![Pijul Nest](https://img.shields.io/badge/%F0%9F%90%A6-Pijul%20Nest-555555.svg)](https://nest.pijul.com/m/tokio-dbus)
 
 > [Rust](http://rust-lang.org/) async
 > [D-Bus](https://www.freedesktop.org/wiki/Software/dbus/) client built on
