@@ -1,4 +1,4 @@
-![tokio-dbus logo](https://github.com/spinda/tokio-dbus/blob/master/etc/logo.png?raw=true)
+<img src="https://github.com/spinda/tokio-dbus/blob/master/etc/logo.png?raw=true" width="200"/>
 
 # tokio-dbus
 
